@@ -13,13 +13,6 @@
 
 <br>
 
-## 📖 Using Library
-
-| 라이브러리 | 사용 목적 | Management Tool |
-| :--------: | :-------: | :-------------: |
-
-<br>
-
 ## 📌 Git Convention
 
 ### 🔹 Commit Convention
