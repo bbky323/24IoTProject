@@ -1,4 +1,4 @@
-# 24IoTProject
+# 24IoTProject 스마트 농작물 관리 시스템
 
 ## 📋 역할 분담
 
