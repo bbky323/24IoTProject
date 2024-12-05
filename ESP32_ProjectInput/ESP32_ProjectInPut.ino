@@ -5,6 +5,7 @@
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BME280.h>
 #include <MQUnifiedsensor.h> // MQ-135 라이브러리 
+#include <String>
 
 AWS_IOT testButton; 
 //const char* ssid = "iPhone"; 
@@ -45,7 +46,8 @@ int delayTime;
 
 // 플래그 및 상태
 int flag = 0;  // 앱 또는 자동 제어
-float ctemp = 20.0, chumid = 30.0;
+float ctemp = 21.0, chumid = 40.0;
+String cname ="";
 int buttonPressCount = 0;  // 버튼 누름 횟수
 float temp = 0, humid = 0, co2 = 0;
 char led[4] = "OFF";
@@ -60,12 +62,12 @@ void publishToAWS(float temp = -1, float humid = -1, int lux = -1, float co2 = -
 
     // Construct JSON payload for the reported state
     sprintf(updatePayload,
-            "{\"state\":{\"reported\":{\"temp\":%.2f,\"humid\":%.2f,\"lux\":%d,\"co2\":%.2f,\"led\":\"%s\",\"heat\":\"%s\",\"fan\":\"%s\",\"pump\":\"%s\", \"flag\":%d,\"ctemp\":%.2f,\"chumid\":%.2f }}}",
+            "{\"state\":{\"reported\":{\"temp\":%.2f,\"humid\":%.2f,\"lux\":%d,\"co2\":%.2f,\"led\":\"%s\",\"heat\":\"%s\",\"fan\":\"%s\",\"pump\":\"%s\", \"flag\":%d,\"ctemp\":%.2f,\"chumid\":%.2f, \"cname\":\"%s\" }}}",
             temp == -1 ? 0 : temp,
             humid == -1 ? 0 : humid,
             lux == -1 ? 0 : lux,
             co2 == -1 ? 0 : co2,
-            led, heat, fan, pump, flag, ctemp, chumid);
+            led, heat, fan, pump, flag, ctemp, chumid, cname);
 
     // Publish the updated state to the reported topic
     if (testButton.publish(pTOPIC_NAME, updatePayload) == 0) { // Publish successfully
@@ -148,6 +150,15 @@ void mySubCallBackHandler(char *topicName, int payloadLen, char *payLoad) {
         stateChanged = true;
       }
     }
+if (state.hasOwnProperty("cname")) {
+    const char *newcname = (const char *)state["cname"];
+    if (strcmp(newcname, cname.c_str()) != 0) {
+        cname = String(newcname); // Convert to Arduino String
+        stateChanged = true;
+    }
+}
+
+    
   }
 
   // 변경 사항이 있는 경우에만 상태 업데이트를 게시
@@ -260,44 +271,69 @@ void loop() {
     Serial.print("Button Press Count: ");
     Serial.println(buttonPressCount);
 
-//    // 버튼 누름에 따른 값 변경 및 유지
-//    if (buttonPressCount == 1) {
-//      temp = 50.0;
-//      Serial.print("temp:");
-//      Serial.println(temp);
-//    } else if (buttonPressCount == 2) {
-//      humid = 100.0;
-//      Serial.print("humid:");
-//      Serial.println(humid);
-//    } else if (buttonPressCount == 3) {
-//      co2 = 1000.0;
-//      Serial.print("co2:");
-//      Serial.println(co2);
-//    } else if (buttonPressCount == 4) { // 모두 초기화
-//      lux = 2000;
-//      Serial.print("lux:");
-//      Serial.println(lux);
-//    } else if(buttonPressCount == 5){
-//      temp = 0;
-//      humid = 0;
-//      co2 = 0;
-//      buttonPressCount = 0;
-//      Serial.println("Reinitialized!");
-//      }
-        if(buttonPressCount == 1){
-          co2 = 2000.0;
-          Serial.print("co2:");
-          Serial.println(co2);
-        }else if(buttonPressCount == 2){
-          humid = 100.0;
-          Serial.print("humid:");
-          Serial.println(humid);
-        }
-        else if(buttonPressCount == 3){
-        co2=0;
-        humid=0;  
-        buttonPressCount = 0;
-        }
+    // 버튼 누름에 따른 값 변경 및 유지
+    if (buttonPressCount == 1) { // lux
+      lux = 2000;
+      Serial.print("lux:");
+      Serial.println(lux);
+      temp = bme.readTemperature(); // 온도 값을 센서에서 읽어와 갱신
+        humid = bme.readHumidity(); // 습도 값을 센서에서 읽어와 갱신
+        MQ135.update();
+        MQ135.setA(110.47);
+        MQ135.setB(-2.862);
+        co2 = MQ135.readSensor() + 400; // CO2 값을 센서에서 읽어와 갱신
+    } else if (buttonPressCount == 2) { // temp
+      temp = bme.readTemperature()-20;
+      Serial.print("temp:");
+      Serial.println(temp);
+      // 다른 건 센서 읽게
+      humid = bme.readHumidity(); // 습도 값을 센서에서 읽어와 갱신
+      MQ135.update();
+      MQ135.setA(110.47);
+      MQ135.setB(-2.862);
+      co2 = MQ135.readSensor() + 400; // CO2 값을 센서에서 읽어와 갱신
+      lux = analogRead(cdsPin); // 조도 센서 값 읽기
+    } else if (buttonPressCount == 3) { // c02
+      co2 = 2000.0;
+      Serial.print("co2:");
+      Serial.println(co2);
+      temp = bme.readTemperature(); // 온도 값을 센서에서 읽어와 갱신
+       humid = bme.readHumidity(); // 습도 값을 센서에서 읽어와 갱신
+       lux = analogRead(cdsPin); // 조도 센서 값 읽기
+    } else if (buttonPressCount == 4) { // lux
+        humid =bme.readHumidity() - 30;
+        Serial.print("humid:");
+        Serial.println(humid);
+        temp = bme.readTemperature(); // 온도 값을 센서에서 읽어와 갱신
+        MQ135.update();
+        MQ135.setA(110.47);
+        MQ135.setB(-2.862);
+        co2 = MQ135.readSensor() + 400; // CO2 값을 센서에서 읽어와 갱신
+        lux = analogRead(cdsPin); // 조도 센서 값 읽기
+    } else if(buttonPressCount == 5){ // 모두 초기화 
+      buttonPressCount = 0;
+      Serial.println("Reinitialized!");
+      }
+
+
+      
+//        if(buttonPressCount == 1){
+//          co2 = 2000.0;
+//          Serial.print("co2:");
+//          Serial.println(co2);
+//        }else if(buttonPressCount == 2){
+//          humid = 100.0;
+//          MQ135.update();
+//          MQ135.setA(110.47);
+//          MQ135.setB(-2.862);
+//          co2 = MQ135.readSensor() + 400; // CO2 값을 센서에서 읽어와 갱신
+//          Serial.print("humid:");
+//          Serial.println(humid);
+//          lux = analogRead(cdsPin); // 조도 센서 값 읽기
+//        }
+//        else if(buttonPressCount == 3){
+//          buttonPressCount = 0;
+//        }
   }
 
     if (currentMillis - lastPublishTime >= 5000) {
@@ -305,7 +341,7 @@ void loop() {
 
       // 센서 값 읽기 및 업데이트
       // 버튼이 눌린 경우 해당 값 유지, 그렇지 않은 경우 센서 값 읽기
-      if (buttonPressCount < 1 || buttonPressCount > 2) {
+      if (buttonPressCount < 1 || buttonPressCount > 4) {
         temp = bme.readTemperature(); // 온도 값을 센서에서 읽어와 갱신
         humid = bme.readHumidity(); // 습도 값을 센서에서 읽어와 갱신
         MQ135.update();
